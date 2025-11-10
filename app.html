@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>문서 업로드(개인정보 검사 → 메일 전송)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h2>파일 전송(우측에서 포함할 항목 선택)</h2>
+
+    <div class="layout">
+      <!-- 왼쪽 폼 -->
+      <form id="uploadForm">
+        <label
+          >제목
+          <input type="text" name="title" required />
+        </label>
+        <label
+          >보내는 사람 이메일
+          <input type="email" name="fromEmail" required />
+        </label>
+        <label
+          >받는 사람 이메일
+          <input type="email" name="toEmail" required />
+        </label>
+        <label
+          >파일 선택
+          <input
+            id="fileInput"
+            type="file"
+            name="file"
+            accept=".pdf,.docx,.pptx"
+            required
+          />
+        </label>
+
+        <!-- 1단계: 개인정보검사 버튼 -->
+        <button type="submit" id="checkBtn">개인정보검사</button>
+
+        <!-- 2단계: 메일 전송 버튼 (처음엔 숨김) -->
+        <button type="button" id="sendBtn" style="margin-top: 8px" disabled>
+          메일 전송
+        </button>
+      </form>
+
+      <!-- 오른쪽 체크박스 패널 -->
+      <section id="reviewPanel">
+        <div id="panelHeader">
+          <h3>첨부할 정보 선택</h3>
+          <div id="panelActions">
+            <button type="button" id="selectAllBtn">전체 선택</button>
+            <button type="button" id="clearAllBtn">전체 해제</button>
+          </div>
+        </div>
+        <div id="fieldsList">
+          <div class="muted">파일을 선택하면 감지된 항목이 표시됩니다.</div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const webhookUrl =
+        "http://localhost:5678/webhook-test/0754be6e-d829-4658-b62d-6f8d6405b861";
+      let requiredFieldsData = []; // analyze 결과 저장
+
+      // 공통 fetch
+      async function postFormData(url, formData, tag) {
+        try {
+          const res = await fetch(url, { method: "POST", body: formData });
+          const text = await res.text();
+          console.log(`[${tag}] status=${res.status}`, text);
+          return { ok: res.ok, status: res.status, text };
+        } catch (err) {
+          console.error(`[${tag}] 요청 실패:`, err);
+          return { ok: false, status: 0, text: String(err) };
+        }
+      }
+
+      // 텍스트에서 JSON 배열 추출
+      function parseArrayFromText(text) {
+        const start = text.indexOf("[");
+        const end = text.lastIndexOf("]");
+        if (start === -1 || end === -1 || end <= start) return [];
+        try {
+          return JSON.parse(text.slice(start, end + 1));
+        } catch {
+          return [];
+        }
+      }
+
+      // XSS 방지
+      function escapeHTML(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      // 체크박스 렌더
+      function renderRequiredFields(items) {
+        const list = document.getElementById("fieldsList");
+        if (!items || !items.length) {
+          list.innerHTML = '<div class="muted">감지된 항목이 없습니다.</div>';
+          return;
+        }
+        list.innerHTML = "";
+        items.forEach((item, idx) => {
+          const id = `req-${idx}`;
+          const div = document.createElement("div");
+          div.className = "field-item";
+          div.innerHTML = `
+            <input type="checkbox" id="${id}" value='${JSON.stringify(
+            item
+          )}' checked />
+            <label class="field-text" for="${id}">
+              <div class="field-type">${escapeHTML(item.type || "유형")}</div>
+              <div class="field-value">${escapeHTML(item.value || "")}</div>
+            </label>
+          `;
+          list.appendChild(div);
+        });
+      }
+
+      // 전체선택/해제
+      document.getElementById("selectAllBtn").addEventListener("click", () => {
+        document
+          .querySelectorAll('#fieldsList input[type="checkbox"]')
+          .forEach((cb) => (cb.checked = true));
+      });
+      document.getElementById("clearAllBtn").addEventListener("click", () => {
+        document
+          .querySelectorAll('#fieldsList input[type="checkbox"]')
+          .forEach((cb) => (cb.checked = false));
+      });
+
+      // 파일 바뀌면: 1단계 버튼 재활성화, 2단계 숨김
+      // 파일 바뀌면: 검사버튼 초기화, 메일 전송 비활성화
+      function resetButtonsForNewFile() {
+        const checkBtn = document.getElementById("checkBtn");
+        const sendBtn = document.getElementById("sendBtn");
+
+        checkBtn.disabled = false;
+        checkBtn.textContent = "개인정보검사";
+        sendBtn.disabled = true; // ✅ 파일 새로 첨부하면 메일 전송 잠금
+      }
+
+      // 1단계: 개인정보검사
+      document
+        .getElementById("uploadForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const checkBtn = document.getElementById("checkBtn");
+          const sendBtn = document.getElementById("sendBtn");
+
+          checkBtn.textContent = "검사중..";
+          checkBtn.disabled = true;
+          sendBtn.disabled = true; // 검사 중엔 메일 전송 비활성화 유지
+
+          const fd = new FormData(e.target);
+          fd.append("action", "analyze");
+          const { ok, text } = await postFormData(webhookUrl, fd, "ANALYZE");
+
+          checkBtn.textContent = "개인정보검사";
+
+          if (ok) {
+            requiredFieldsData = parseArrayFromText(text);
+            if (requiredFieldsData.length)
+              renderRequiredFields(requiredFieldsData);
+            sendBtn.disabled = false; // ✅ 검사 성공 후 메일 전송 가능
+          } else {
+            alert("개인정보 검사 실패. 콘솔 로그를 확인하세요.");
+            checkBtn.disabled = false; // 실패 시 다시 시도 가능
+          }
+        });
+
+      // 2단계: 메일 전송
+      document.getElementById("sendBtn").addEventListener("click", async () => {
+        const sendBtn = document.getElementById("sendBtn");
+        sendBtn.disabled = true;
+        sendBtn.textContent = "전송 중..";
+
+        const selected = [];
+        document
+          .querySelectorAll('#fieldsList input[type="checkbox"]:checked')
+          .forEach((cb) => {
+            try {
+              selected.push(JSON.parse(cb.value));
+            } catch {}
+          });
+
+        const formElem = document.getElementById("uploadForm");
+        const fd = new FormData(formElem);
+        fd.append("action", "submit");
+        fd.append("requiredFields", JSON.stringify(selected));
+
+        const { ok } = await postFormData(webhookUrl, fd, "SUBMIT");
+        sendBtn.textContent = ok ? "전송 완료" : "메일 전송";
+        sendBtn.disabled = !ok ? false : true; // 실패 시 재활성화, 성공 시 잠금
+      });
+    </script>
+  </body>
+</html>
