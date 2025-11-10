@@ -12,6 +12,9 @@
     <div class="layout">
       <!-- 왼쪽 폼 -->
       <form id="uploadForm">
+        <!-- 요청 타입 제어용 hidden input -->
+        <input type="hidden" name="action" id="actionInput" value="analyze" />
+
         <label
           >제목
           <input type="text" name="title" required />
@@ -38,7 +41,7 @@
         <!-- 1단계: 개인정보검사 버튼 -->
         <button type="submit" id="checkBtn">개인정보검사</button>
 
-        <!-- 2단계: 메일 전송 버튼 (처음엔 숨김) -->
+        <!-- 2단계: 메일 전송 버튼 (항상 보이되 초기엔 비활성화) -->
         <button type="button" id="sendBtn" style="margin-top: 8px" disabled>
           메일 전송
         </button>
@@ -136,31 +139,42 @@
           .forEach((cb) => (cb.checked = false));
       });
 
-      // 파일 바뀌면: 1단계 버튼 재활성화, 2단계 숨김
-      // 파일 바뀌면: 검사버튼 초기화, 메일 전송 비활성화
+      // 파일 바뀌면: 검사버튼 초기화, 메일 전송 비활성화 + 목록 리셋
       function resetButtonsForNewFile() {
         const checkBtn = document.getElementById("checkBtn");
         const sendBtn = document.getElementById("sendBtn");
+        const actionInput = document.getElementById("actionInput");
 
         checkBtn.disabled = false;
         checkBtn.textContent = "개인정보검사";
-        sendBtn.disabled = true; // ✅ 파일 새로 첨부하면 메일 전송 잠금
+        sendBtn.disabled = true; // 파일 새로 첨부하면 메일 전송 잠금
+        actionInput.value = "analyze"; // 기본은 분석
+        document.getElementById("fieldsList").innerHTML =
+          '<div class="muted">파일을 선택하면 감지된 항목이 표시됩니다.</div>';
       }
 
-      // 1단계: 개인정보검사
+      // 파일 선택 시 초기화
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", resetButtonsForNewFile);
+
+      // 1단계: 개인정보검사 (폼 submit)
       document
         .getElementById("uploadForm")
         .addEventListener("submit", async (e) => {
           e.preventDefault();
+
           const checkBtn = document.getElementById("checkBtn");
           const sendBtn = document.getElementById("sendBtn");
+          const actionInput = document.getElementById("actionInput");
+
+          // analyze 요청으로 설정
+          actionInput.value = "analyze";
 
           checkBtn.textContent = "검사중..";
-          checkBtn.disabled = true;
           sendBtn.disabled = true; // 검사 중엔 메일 전송 비활성화 유지
 
           const fd = new FormData(e.target);
-          fd.append("action", "analyze");
           const { ok, text } = await postFormData(webhookUrl, fd, "ANALYZE");
 
           checkBtn.textContent = "개인정보검사";
@@ -179,9 +193,16 @@
       // 2단계: 메일 전송
       document.getElementById("sendBtn").addEventListener("click", async () => {
         const sendBtn = document.getElementById("sendBtn");
+        const formElem = document.getElementById("uploadForm");
+        const actionInput = document.getElementById("actionInput");
+
+        // submit 요청으로 변경
+        actionInput.value = "submit";
+
         sendBtn.disabled = true;
         sendBtn.textContent = "전송 중..";
 
+        // 선택된 항목 수집
         const selected = [];
         document
           .querySelectorAll('#fieldsList input[type="checkbox"]:checked')
@@ -191,14 +212,12 @@
             } catch {}
           });
 
-        const formElem = document.getElementById("uploadForm");
         const fd = new FormData(formElem);
-        fd.append("action", "submit");
         fd.append("requiredFields", JSON.stringify(selected));
 
         const { ok } = await postFormData(webhookUrl, fd, "SUBMIT");
         sendBtn.textContent = ok ? "전송 완료" : "메일 전송";
-        sendBtn.disabled = !ok ? false : true; // 실패 시 재활성화, 성공 시 잠금
+        sendBtn.disabled = ok ? true : false; // 실패 시 재활성화, 성공 시 잠금
       });
     </script>
   </body>
