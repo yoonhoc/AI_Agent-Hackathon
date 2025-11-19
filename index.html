@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>문서 업로드(개인정보 검사 → 메일 전송)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h2>개인정보 이메일 시스템</h2>
+
+    <div class="layout">
+      <!-- 왼쪽 폼 -->
+      <form id="uploadForm">
+        <!-- 요청 타입 제어용 hidden input -->
+        <input type="hidden" name="action" id="actionInput" value="analyze" />
+
+        <label
+          >제목
+          <input type="text" name="title" required value="test" />
+        </label>
+        <label
+          >받는 사람 이메일
+          <input
+            type="email"
+            name="toEmail"
+            required
+            value="dbsgh725@naver.com"
+          />
+        </label>
+        <label
+          >파일 선택
+          <input
+            id="fileInput"
+            type="file"
+            name="file"
+            accept=".pdf,.docx,.pptx"
+            required
+          />
+        </label>
+
+        <!-- 1단계: 개인정보검사 버튼 -->
+        <button type="submit" id="checkBtn">개인정보검사</button>
+
+        <!-- 2단계: 메일 전송 버튼 (항상 보이되 초기엔 비활성화) -->
+        <button type="button" id="sendBtn" style="margin-top: 8px" disabled>
+          메일 전송
+        </button>
+      </form>
+
+      <!-- 오른쪽 체크박스 패널 -->
+      <section id="reviewPanel">
+        <div id="panelHeader">
+          <h3>첨부할 정보 선택</h3>
+          <div id="panelActions">
+            <button type="button" id="selectAllBtn">전체 선택</button>
+            <button type="button" id="clearAllBtn">전체 해제</button>
+          </div>
+        </div>
+        <div id="fieldsList">
+          <div class="muted">파일을 선택하면 감지된 항목이 표시됩니다.</div>
+        </div>
+        <button type="submit" id="selectedInfo">전송</button>
+      </section>
+    </div>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
