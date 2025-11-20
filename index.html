@@ -1,69 +1,73 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>문서 업로드(개인정보 검사 → 메일 전송)</title>
-    <link rel="stylesheet" href="./style.css" />
-  </head>
-  <body>
-    <h2>개인정보 이메일 시스템</h2>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>문서 업로드</title>
+  <link rel="stylesheet" href="./style.css" />
+  <style>
+    .invalid { border-color: red; }
+    .error-text { color: red; font-size: 12px; margin-left: 5px; }
+    
+    #selectedInfoBtn {
+      margin-top: 10px;
+      width: 100%;
+      background-color: #27ae60;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #selectedInfoBtn:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    #selectedInfoBtn:hover:not(:disabled) {
+      background-color: #219150;
+    }
+  </style>
+</head>
+<body>
+  <h2>파일 전송 및 마킹 시스템</h2>
+  <div class="layout">
+    <form id="uploadForm" novalidate>
+      <input type="hidden" name="action" id="actionInput" value="analyze" />
+      
+      <label>제목
+        <input type="text" name="title" id="titleInput" required value="개인정보 검출 테스트" />
+      </label>
+      
+      <label>받는 사람 이메일
+        <input type="email" name="toEmail" id="toEmail" required value="test@example.com" />
+        <span class="error-text" id="toError"></span>
+      </label>
+      
+      <label>파일 선택
+        <input id="fileInput" type="file" name="files" accept=".pdf,.docx,.pptx" required />
+      </label>
 
-    <div class="layout">
-      <!-- 왼쪽 폼 -->
-      <form id="uploadForm">
-        <!-- 요청 타입 제어용 hidden input -->
-        <input type="hidden" name="action" id="actionInput" value="analyze" />
+      <label>메일 내용
+        <textarea id="messageBox" name="message" placeholder="메일 본문 내용을 입력하세요..." required>검출된 내용을 확인해주세요.</textarea>
+      </label>
+      
+      <button type="submit" id="checkBtn">개인정보검사</button>
+      <button type="button" id="sendBtn" style="margin-top: 8px" disabled>메일 전송 (전체)</button>
+    </form>
 
-        <label
-          >제목
-          <input type="text" name="title" required value="test" />
-        </label>
-        <label
-          >받는 사람 이메일
-          <input
-            type="email"
-            name="toEmail"
-            required
-            value="dbsgh725@naver.com"
-          />
-        </label>
-        <label
-          >파일 선택
-          <input
-            id="fileInput"
-            type="file"
-            name="file"
-            accept=".pdf,.docx,.pptx"
-            required
-          />
-        </label>
+    <section id="reviewPanel">
+      <div id="panelHeader">
+        <h3>감지된 개인정보 (선택 마킹)</h3>
+      </div>
+      <div id="fieldsList">
+        <div class="muted">파일을 선택하고 검사를 진행하면<br>감지된 항목이 여기에 표시됩니다.</div>
+      </div>
+      
+      <button type="button" id="selectedInfoBtn" disabled>선택 정보 전송 (마킹)</button>
+    </section>
+  </div>
 
-        <!-- 1단계: 개인정보검사 버튼 -->
-        <button type="submit" id="checkBtn">개인정보검사</button>
-
-        <!-- 2단계: 메일 전송 버튼 (항상 보이되 초기엔 비활성화) -->
-        <button type="button" id="sendBtn" style="margin-top: 8px" disabled>
-          메일 전송
-        </button>
-      </form>
-
-      <!-- 오른쪽 체크박스 패널 -->
-      <section id="reviewPanel">
-        <div id="panelHeader">
-          <h3>첨부할 정보 선택</h3>
-          <div id="panelActions">
-            <button type="button" id="selectAllBtn">전체 선택</button>
-            <button type="button" id="clearAllBtn">전체 해제</button>
-          </div>
-        </div>
-        <div id="fieldsList">
-          <div class="muted">파일을 선택하면 감지된 항목이 표시됩니다.</div>
-        </div>
-        <button type="submit" id="selectedInfo">전송</button>
-      </section>
-    </div>
-
-    <script src="./script.js"></script>
-  </body>
+  <script src="./script.js"></script>
+</body>
 </html>
