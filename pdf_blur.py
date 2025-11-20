@@ -1,105 +1,56 @@
-import fitz
-from PIL import Image, ImageDraw
-import io
 import sys
-import argparse
-import os
-import ast
+import fitz  # PyMuPDF
+
+def parse_boxes(csv_str):
+    """
+    CSV: x0,y0,x1,y1,x0,y0,x1,y1,...
+    (x0, y0) = 좌상단
+    (x1, y1) = 우하단 이라고 가정
+    """
+    nums = [float(v.strip()) for v in csv_str.split(",") if v.strip()]
+
+    if len(nums) < 4:
+        return []
+
+    if len(nums) % 4 != 0:
+        print("[!] 4개씩 끊을 수 없음 -> 남는 숫자 제거")
+        nums = nums[: len(nums) - (len(nums) % 4)]
+
+    boxes = []
+    for i in range(0, len(nums), 4):
+        x0, y0, x1, y1 = nums[i:i+4]
+        # 그대로 사용 (정렬 X)
+        boxes.append((x0, y0, x1, y1))
+
+    return boxes
 
 
-def blackout_pdf_region(input_pdf, output_pdf, page_num, x, y, width, height):
+def black_out(pdf_path, csv_str):
+    boxes = parse_boxes(csv_str)
+    if not boxes:
+        print("마스킹할 박스 없음.")
+        return
 
-    doc = fitz.open(input_pdf)
-    page = doc[page_num]
+    doc = fitz.open(pdf_path)
 
-    page_height = page.rect.height
+    for p in range(len(doc)):
+        page = doc[p]
+        print(f"[Page {p+1}] {len(boxes)}개 박스")
 
-    # 2배 확대
-    mat = fitz.Matrix(2, 2)
-    pix = page.get_pixmap(matrix=mat)
+        for i, (x0, y0, x1, y1) in enumerate(boxes, start=1):
 
-    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    draw = ImageDraw.Draw(img)
+            rect = fitz.Rect(x0/2.1, y0/2.1, x1/2.1, y1/2.1)
+            page.draw_rect(rect, color=(0, 0, 0), fill=(0, 0, 0))
+            print(f"  - [{i}] Rect{x0, y0, x1, y1}")
 
-    # PDF 좌표 → 이미지 좌표 변환
-    pdf_x = x
-    pdf_y = page_height - (y + height)
-
-    # 2배 확대 적용
-    scaled_x = int(pdf_x * 2)
-    scaled_y = int(pdf_y * 2)
-    scaled_w = int(width * 2)
-    scaled_h = int(height * 2)
-
-    # 검은 박스 채우기
-    draw.rectangle(
-        [scaled_x, scaled_y, scaled_x + scaled_w, scaled_y + scaled_h],
-        fill="black"
-    )
-
-    # 이미지 → PDF
-    img_bytes = io.BytesIO()
-    img.save(img_bytes, format="PNG")
-    img_bytes = img_bytes.getvalue()
-
-    new_doc = fitz.open()
-    new_page = new_doc.new_page(width=page.rect.width, height=page.rect.height)
-    new_page.insert_image(new_page.rect, stream=img_bytes)
-
-    result_doc = fitz.open()
-    result_doc.insert_pdf(doc, from_page=0, to_page=len(doc)-1)
-
-    result_doc.delete_page(page_num)
-    result_doc.insert_pdf(new_doc, from_page=0, to_page=0, start_at=page_num)
-
-    result_doc.save(output_pdf)
-
+    doc.save(pdf_path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
     doc.close()
-    new_doc.close()
-    result_doc.close()
-
-
-def process_boxes(input_pdf, boxes, page_num):
-
-    current_file = input_pdf
-    temp_file = input_pdf + ".tmp.pdf"
-
-    for idx, b in enumerate(boxes):
-        x1, y1, x2, y2 = b
-        w = x2 - x1
-        h = y2 - y1
-
-        print(f"[{idx+1}] 처리: x={x1}, y={y1}, w={w}, h={h}")
-
-        blackout_pdf_region(current_file, temp_file, page_num, x1, y1, w, h)
-
-        # 임시 파일을 원본으로 교체
-        if os.path.exists(temp_file):
-            if os.path.exists(current_file):
-                os.remove(current_file)
-            os.rename(temp_file, current_file)
-
-    print("완료!")
+    print("[완료] PDF 저장:", pdf_path)
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("사용법: python pdf_blur.py <pdf_path> <csv_coords>")
+        sys.exit(1)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("pdf")
-    parser.add_argument("coords_string")
-    parser.add_argument("-p", "--page", type=int, default=0)
-
-    args = parser.parse_args()
-
-    # coords_string 은 JSON 전체이므로 꺼내야 함
-    raw = ast.literal_eval(args.coords_string)
-
-    # raw = [{ "boxes": [ [...], [...], ... ] }]
-    if isinstance(raw, list) and "boxes" in raw[0]:
-        boxes = raw[0]["boxes"]
-    else:
-        boxes = raw  # 혹시 직접 전달된 경우
-
-    print("총 박스 개수:", len(boxes))
-
-    process_boxes(args.pdf, boxes, args.page)
+    black_out(sys.argv[1], sys.argv[2])

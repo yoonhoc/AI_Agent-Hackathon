@@ -15,7 +15,7 @@
  */
 const analyzeWebhookUrl = "http://localhost:5678/webhook-test/analyze";
 const sendWebhookUrl = "http://localhost:5678/webhook/send";
-const sendSelectedInfo = "http://localhost:5678/webhook/choice";
+const sendSelectedInfo = "http://localhost:5678/webhook-test/choice";
 
 /**
  * 분석 결과 저장용 배열
@@ -329,7 +329,7 @@ async function handleSendSelectedInfo() {
   // UI 상태 업데이트 (전송 중)
   DOM.selectedInfoBtn.disabled = true;
   DOM.selectedInfoBtn.textContent = "전송 중..";
-
+  const file = DOM.fileInput.files[0];
   // 체크된 항목만 수집
   const selected = [];
   const checkedBoxes = DOM.fieldsList.querySelectorAll(
@@ -356,6 +356,7 @@ async function handleSendSelectedInfo() {
   // FormData 생성 (선택된 항목만 전송)
   const formData = new FormData();
   formData.append("selectedFields", JSON.stringify(selected));
+  formData.append("fileName", file.name);
 
   console.log(formData);
   // 선택된 정보 전송 요청
